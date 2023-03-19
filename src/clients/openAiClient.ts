@@ -1,4 +1,5 @@
 import { Configuration, OpenAIApi } from 'openai'
+import { Logger } from '..'
 
 export type Role = 'user' | 'system' | 'assistant'
 type SupportedLanguage = 'JavaScript/Node' | 'Python' | 'Rust'
@@ -19,18 +20,20 @@ const getSystemPrompt = (
   programminglanguage: SupportedLanguage,
   operatingsystem: string
 ): string => {
-  return (
-    `You are gpt-interpreter, an AI code interpreter based on ${model}.` +
-    `Your task as an assistant is to execute bash commands to output a program in ${programminglanguage}.` +
-    `You have command line access to the project folder on the ${operatingsystem} operating system.` +
-    `When you respond, if code is found in between triple backticks it will be executed and the 
-    response will be sent back to you immediately, the rest of the message will be ignored. this system
-    can only execute one line at a time `
-  )
+  return `You are gpt-interpreter, an AI code genertor based on ${model}.
+  You have a user that wants to build a program in ${programminglanguage}.
+  You have command line access to a system running ${operatingsystem} and have execution context in the correct directory.
+  When you respond, if terminal commands are found found in between triple backticks they will be executed and the 
+  response will be sent back to you immediately, the rest of the message will be ignored. this system
+  can only execute one line at a time. The user cannot read messages that are sent to the system. They only see messages that dont contain code. 
+  The system will recursively respond back to you until you send a message that does not contain code.`
 }
+
 const MODEL = 'gpt-3.5-turbo'
 
-export const createOpenAiClient = () => {
+const history: Array<Message> = []
+
+export const createOpenAiClient = (logger: Logger) => {
   const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY
   })
@@ -44,16 +47,23 @@ export const createOpenAiClient = () => {
   const chatCompletion = async (
     message: string
   ): Promise<string | undefined> => {
+    history.push(new Message('user', message))
+
+    const messages = [
+      new Message('system', systemPrompt).toJson(),
+      ...history.map((message) => message.toJson())
+    ]
+
+    logger.info('Sending messages to GPT: ', messages)
+
     const completion = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
-      messages: [
-        new Message('system', systemPrompt).toJson(),
-        new Message('user', message).toJson()
-      ]
+      messages
     })
 
     const chosenOutput = completion.data.choices[0].message?.content
     console.log(chosenOutput)
+    history.push(new Message('assistant', chosenOutput ?? ''))
     return chosenOutput
   }
 

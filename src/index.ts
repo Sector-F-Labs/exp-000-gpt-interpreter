@@ -7,29 +7,43 @@ const rli = readline.createInterface({
   output: process.stdout
 })
 
-function getCodeFromMarkdown(markdown: string): string {
-  const codeBlockRegex = /```(.*)```/gm
+function getCodeFromMarkdown(markdown: string): string[] {
+  const codeBlockRegex = /```([\s\S]*?)```/gm
   const codeBlock = codeBlockRegex.exec(markdown)
   if (codeBlock) {
-    return codeBlock[1]
+    const code = codeBlock[1]
+    const commands = code.split('\n').filter((cmd) => cmd.trim() !== '')
+    return commands
   }
-  return ''
+  return []
 }
 
 const logger = {
-  info: console.log
+  info: console.log,
+  error: console.error
 }
+export type Logger = typeof logger
 
 async function evaluate(input: string, openai: OpenAiClient): Promise<string> {
   async function assistantExecute(message: string): Promise<string> {
     const gptResponse = await openai.chatCompletion(message)
     if (gptResponse?.includes('```')) {
-      const code = getCodeFromMarkdown(gptResponse)
-      logger.info('Executing code: ', code)
-      const commandResponse = await executeCommand(code)
-      logger.info('Code execution response: ', commandResponse)
+      const commands = getCodeFromMarkdown(gptResponse)
+      let combinedCommandOutput = ''
+
+      for (const code of commands) {
+        logger.info('Executing code: ', code)
+        const commandResponse = await executeCommand(code)
+        if (commandResponse.status === 'failure') {
+          logger.error('Code execution error: ', commandResponse.error)
+          return `Error executing command: ${commandResponse.error}`
+        }
+        logger.info('Code execution response: ', commandResponse.output)
+        combinedCommandOutput += commandResponse.output + '\n'
+      }
+
       const gptResponseToCodeOutput = await openai.chatCompletion(
-        JSON.stringify(commandResponse)
+        JSON.stringify(combinedCommandOutput.trim())
       )
       return assistantExecute(gptResponseToCodeOutput ?? 'completed')
     }
@@ -40,7 +54,10 @@ async function evaluate(input: string, openai: OpenAiClient): Promise<string> {
     const parsed = input.toString()
     const assistantOutput = await assistantExecute(parsed)
 
-    return assistantOutput?.trim() ?? 'output was not a string'
+    // const commandResult = await executeCommand(parsed)
+    // const assistantOutput = JSON.stringify(commandResult)
+
+    return assistantOutput //?.trim() ?? 'output was not a string'
   } catch (error: any) {
     console.error(error)
     return error.message
@@ -56,7 +73,7 @@ async function runRepl(openai: OpenAiClient): Promise<void> {
 }
 
 async function main() {
-  const openai = createOpenAiClient()
+  const openai = createOpenAiClient(logger)
   await runRepl(openai)
 }
 
