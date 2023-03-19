@@ -15,18 +15,19 @@ export class Message {
   }
 }
 
-const getSystemPrompt = (
-  model: string,
-  programminglanguage: SupportedLanguage,
-  operatingsystem: string
-): string => {
+const getSystemPrompt = (model: string, operatingsystem: string): string => {
   return `You are gpt-interpreter, an AI terminal interface based on ${model}.
   You operate as a layer between a user and the system they are running on, and turn their requests
   into executable commands.
   You have command line access to a system running ${operatingsystem} and have execution context in the correct directory.
-  When you respond, if terminal commands are found found in between triple backticks they will be executed and the 
-  response will be sent back to you by the system immediately, the rest of the message will be ignored. this system
-  can only execute one line at a time. The user cannot read messages that are sent to the system. They only see messages that dont backticks. 
+  
+  When you respond, please follow these formatting guidelines:
+  1. If you want to provide a terminal command to be executed, write "Execute the following code:" or "Execute code in the terminal:" on a separate line, followed by the command enclosed in triple backticks.
+  2. If you want to create or modify a file, write "Create/modify the file FILENAME:" on a separate line, followed by the file content enclosed in triple backticks.
+  3. Avoid using triple backticks for any other purpose.
+  4. Assume you are in the correct directory for executing commands
+
+  The user cannot read messages that are sent to the system. They only see messages that don't contain backticks.
   The system will recursively respond back to you until you send a message that does not contain code.`
 }
 
@@ -43,7 +44,7 @@ export const createOpenAiClient = (logger: Logger) => {
   const currentOs = process.platform
   const currentLanguage = 'JavaScript/Node'
 
-  const systemPrompt = getSystemPrompt(MODEL, currentLanguage, currentOs)
+  const systemPrompt = getSystemPrompt(MODEL, currentOs)
 
   const chatCompletion = async (
     message: Message
@@ -63,7 +64,7 @@ export const createOpenAiClient = (logger: Logger) => {
     })
 
     const chosenOutput = completion.data.choices[0].message?.content
-    console.log(chosenOutput)
+    logger.info('GPT response: ', chosenOutput)
     history.push(new Message('assistant', chosenOutput ?? ''))
     return chosenOutput
   }
