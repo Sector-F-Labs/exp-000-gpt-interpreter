@@ -4,7 +4,7 @@ import { Logger } from '../Logger'
 export type Role = 'user' | 'system' | 'assistant'
 type SupportedLanguage = 'JavaScript/Node' | 'Python' | 'Rust'
 
-class Message {
+export class Message {
   constructor(private role: Role, public message: string) {}
 
   toJson() {
@@ -45,9 +45,9 @@ export const createOpenAiClient = (logger: Logger) => {
   const systemPrompt = getSystemPrompt(MODEL, currentLanguage, currentOs)
 
   const chatCompletion = async (
-    message: string
+    message: Message
   ): Promise<string | undefined> => {
-    history.push(new Message('user', message))
+    history.push(message)
 
     const messages = [
       new Message('system', systemPrompt).toJson(),
@@ -58,7 +58,7 @@ export const createOpenAiClient = (logger: Logger) => {
 
     const completion = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
-      messages
+      messages: messages
     })
 
     const chosenOutput = completion.data.choices[0].message?.content

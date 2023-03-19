@@ -1,5 +1,9 @@
 import * as readline from 'readline'
-import { createOpenAiClient, OpenAiClient } from './clients/openAiClient'
+import {
+  createOpenAiClient,
+  Message,
+  OpenAiClient
+} from './clients/openAiClient'
 import { executeCommand } from './clients/terminalClient'
 import { Logger, logger } from './Logger'
 
@@ -44,14 +48,16 @@ async function assistantExecute(
   message: string,
   logger: Logger
 ): Promise<string> {
-  const gptResponse = await openaiClient.chatCompletion(message)
+  const gptResponse = await openaiClient.chatCompletion(
+    new Message('user', message)
+  )
 
   if (gptResponse?.includes('```')) {
     const commands = getCodeFromMarkdown(gptResponse)
     const combinedCommandOutput = await executeCommands(commands, logger)
 
     const gptResponseToCodeOutput = await openaiClient.chatCompletion(
-      JSON.stringify(combinedCommandOutput)
+      new Message('system', JSON.stringify(combinedCommandOutput))
     )
     return assistantExecute(
       openaiClient,
