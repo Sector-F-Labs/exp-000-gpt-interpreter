@@ -1,0 +1,24 @@
+{
+  "name": "gpt-interpreter",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:Sector-F-Labs/gpt-interpreter.git",
+  "author": "me@divanv.com",
+  "license": "Apache 2.0",
+  "private": true,
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.5.0",
+    "prettier": "^2.8.4",
+    "ts-jest": "^29.0.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.2"
+  },
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "openai": "^3.2.1"
+  }
+}
