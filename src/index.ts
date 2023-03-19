@@ -1,6 +1,7 @@
 import * as readline from 'readline'
 import { createOpenAiClient, OpenAiClient } from './clients/openAiClient'
 import { executeCommand } from './clients/terminalClient'
+import { Logger, logger } from './Logger'
 
 const rli = readline.createInterface({
   input: process.stdin,
@@ -18,46 +19,55 @@ function getCodeFromMarkdown(markdown: string): string[] {
   return []
 }
 
-const logger = {
-  info: console.log,
-  error: console.error
-}
-export type Logger = typeof logger
+async function executeCommands(
+  commands: string[],
+  logger: Logger
+): Promise<string> {
+  let combinedCommandOutput = ''
 
-async function evaluate(input: string, openai: OpenAiClient): Promise<string> {
-  async function assistantExecute(message: string): Promise<string> {
-    const gptResponse = await openai.chatCompletion(message)
-    if (gptResponse?.includes('```')) {
-      const commands = getCodeFromMarkdown(gptResponse)
-      let combinedCommandOutput = ''
-
-      for (const code of commands) {
-        logger.info('Executing code: ', code)
-        const commandResponse = await executeCommand(code)
-        if (commandResponse.status === 'failure') {
-          logger.error('Code execution error: ', commandResponse.error)
-          return `Error executing command: ${commandResponse.error}`
-        }
-        logger.info('Code execution response: ', commandResponse.output)
-        combinedCommandOutput += commandResponse.output + '\n'
-      }
-
-      const gptResponseToCodeOutput = await openai.chatCompletion(
-        JSON.stringify(combinedCommandOutput.trim())
-      )
-      return assistantExecute(gptResponseToCodeOutput ?? 'completed')
+  for (const code of commands) {
+    logger.info(`Executing code: "${code}"`)
+    const commandResponse = await executeCommand(code)
+    if (commandResponse.status === 'failure') {
+      logger.error('Code execution error: ', commandResponse.error)
+      return `Error executing command: ${commandResponse.error}`
     }
-    return gptResponse ?? 'assistant output was not a string'
+    logger.info('Code execution response: ', commandResponse.output)
+    combinedCommandOutput += commandResponse.output + '\n'
   }
 
+  return combinedCommandOutput.trim()
+}
+
+async function assistantExecute(
+  openaiClient: OpenAiClient,
+  message: string,
+  logger: Logger
+): Promise<string> {
+  const gptResponse = await openaiClient.chatCompletion(message)
+
+  if (gptResponse?.includes('```')) {
+    const commands = getCodeFromMarkdown(gptResponse)
+    const combinedCommandOutput = await executeCommands(commands, logger)
+
+    const gptResponseToCodeOutput = await openaiClient.chatCompletion(
+      JSON.stringify(combinedCommandOutput)
+    )
+    return assistantExecute(
+      openaiClient,
+      gptResponseToCodeOutput ?? 'completed',
+      logger
+    )
+  }
+
+  return gptResponse ?? 'assistant output was not a string'
+}
+
+async function evaluate(input: string, openai: OpenAiClient): Promise<string> {
   try {
     const parsed = input.toString()
-    const assistantOutput = await assistantExecute(parsed)
-
-    // const commandResult = await executeCommand(parsed)
-    // const assistantOutput = JSON.stringify(commandResult)
-
-    return assistantOutput //?.trim() ?? 'output was not a string'
+    const assistantOutput = await assistantExecute(openai, parsed, logger)
+    return assistantOutput
   } catch (error: any) {
     console.error(error)
     return error.message
@@ -65,9 +75,9 @@ async function evaluate(input: string, openai: OpenAiClient): Promise<string> {
 }
 
 async function runRepl(openai: OpenAiClient): Promise<void> {
-  rli.question('> ', async (input: string) => {
+  rli.question('user> ', async (input: string) => {
     const userInput = await evaluate(input, openai)
-    console.log(`The user input was: ${userInput}`)
+    console.log(`assistant> ${userInput}`)
     runRepl(openai)
   })
 }

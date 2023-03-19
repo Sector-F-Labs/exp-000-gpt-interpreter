@@ -1,5 +1,5 @@
 import { Configuration, OpenAIApi } from 'openai'
-import { Logger } from '..'
+import { Logger } from '../Logger'
 
 export type Role = 'user' | 'system' | 'assistant'
 type SupportedLanguage = 'JavaScript/Node' | 'Python' | 'Rust'
@@ -51,7 +51,7 @@ export const createOpenAiClient = (logger: Logger) => {
 
     const messages = [
       new Message('system', systemPrompt).toJson(),
-      ...history.map((message) => message.toJson())
+      ...history.map((m) => m.toJson())
     ]
 
     logger.info('Sending messages to GPT: ', messages)

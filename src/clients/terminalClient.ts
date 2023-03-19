@@ -1,4 +1,4 @@
-import { exec } from 'child_process'
+import { exec, spawn } from 'child_process'
 
 interface CommandResult {
   status: 'success' | 'failure'
@@ -7,29 +7,26 @@ interface CommandResult {
 }
 
 export async function executeCommand(command: string): Promise<CommandResult> {
-  return new Promise<CommandResult>((resolve, reject) => {
+  return new Promise<CommandResult>((resolve) => {
     const cwd = process.cwd()
     process.chdir('./sandbox')
-    exec(command, (error, stdout, stderr) => {
+
+    const [cmd, ...args] = command.split(' ')
+    const childProcess = spawn(cmd, args, { stdio: 'inherit' })
+
+    childProcess.on('exit', (code) => {
       process.chdir(cwd)
-      if (error) {
-        reject({
-          status: 'failure',
-          error: error.message.trim()
+      if (code === 0) {
+        resolve({
+          status: 'success',
+          output: 'Command executed successfully'
         })
-        return
-      }
-      if (stderr) {
+      } else {
         resolve({
           status: 'failure',
-          error: stderr.trim()
+          error: `Command exited with code ${code}`
         })
-        return
       }
-      resolve({
-        status: 'success',
-        output: stdout.trim()
-      })
     })
   })
 }
